@@ -12,8 +12,12 @@ from framework import matrix as mat
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# Os principais programas utilizados são:
+#lit.vert: processamento dos vértices.
+#lit.frag: cálculo da aparência dos pixels, incluindo iluminação.
+#depth.vert e depth.frag: geração das informações de profundidade utilizadas nas sombras.
 
-class Program:
+class Program: # Representa um programa GLSL compilado
     def __init__(self, name):
         vertex = (ROOT / "shaders" / f"{name}.vert").read_text(encoding="utf-8")
         fragment = (ROOT / "shaders" / f"{name}.frag").read_text(encoding="utf-8")
@@ -23,35 +27,35 @@ class Program:
         )
         self.locations = {}
 
-    def use(self):
+    def use(self): #Ativa o programa
         gl.glUseProgram(self.id)
 
-    def location(self, name):
+    def location(self, name): # Busca e cacheia a localização de um uniforme
         if name not in self.locations:
             self.locations[name] = gl.glGetUniformLocation(self.id, name)
         return self.locations[name]
 
-    def matrix(self, name, value):
+    def matrix(self, name, value): # Garante um array contiguo
         value = np.ascontiguousarray(value, dtype=np.float32)
         fn = gl.glUniformMatrix3fv if value.shape == (3, 3) else gl.glUniformMatrix4fv
         fn(self.location(name), 1, gl.GL_TRUE, value)
 
-    def vector(self, name, value):
+    def vector(self, name, value): # Envia um uniform para vec2 ou vec3
         fn = gl.glUniform2f if len(value) == 2 else gl.glUniform3f
         fn(self.location(name), *map(float, value))
 
-    def integer(self, name, value):
+    def integer(self, name, value): #Booleanos ou samplers
         gl.glUniform1i(self.location(name), int(value))
 
-    def scalar(self, name, value):
+    def scalar(self, name, value): # float para escalares
         gl.glUniform1f(self.location(name), float(value))
 
 
 class Shadow:
     def __init__(self, resolution=2048):
         self.resolution = resolution
-        self.direction = mat.normalized((-0.6, -1.0, -0.45))
-        target = np.array([0, 1, 0], dtype=np.float32)
+        self.direction = mat.normalized((-0.6, -1.0, -0.45)) # direção de propagação
+        target = np.array([0, 1, 0], dtype=np.float32) # origem da luz
         self.matrix = mat.orthographic(-15, 15, -15, 15, 1, 55) @ mat.look_at(
             target - self.direction * 26, target
         )
@@ -68,14 +72,14 @@ class Shadow:
             gl.GL_FLOAT,
             None,
         )
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MIN_FILTER, gl.GL_NEAREST) # não é necessário interpolar profundidade
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_MAG_FILTER, gl.GL_NEAREST)
-        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER)
+        gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_S, gl.GL_CLAMP_TO_BORDER) # fora do mapa o fragmento é considerado iluminado 
         gl.glTexParameteri(gl.GL_TEXTURE_2D, gl.GL_TEXTURE_WRAP_T, gl.GL_CLAMP_TO_BORDER)
         gl.glTexParameterfv(
             gl.GL_TEXTURE_2D, gl.GL_TEXTURE_BORDER_COLOR, np.ones(4, dtype=np.float32)
         )
-        self.fbo = gl.glGenFramebuffers(1)
+        self.fbo = gl.glGenFramebuffers(1) # FrameBuffer
         gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.fbo)
         gl.glFramebufferTexture2D(
             gl.GL_FRAMEBUFFER, gl.GL_DEPTH_ATTACHMENT, gl.GL_TEXTURE_2D, self.texture, 0
@@ -105,7 +109,7 @@ class Renderer:
         gl.glCullFace(gl.GL_BACK)
         gl.glClearColor(0.055, 0.09, 0.13, 1)
 
-    def geometry(self, geometry):
+    def geometry(self, geometry): # Crie e cacheia um VAO e um VBO para geometria
         if geometry not in self.geometry_cache:
             vao, vbo = gl.glGenVertexArrays(1), gl.glGenBuffers(1)
             gl.glBindVertexArray(vao)
@@ -120,7 +124,7 @@ class Renderer:
             self.geometry_cache[geometry] = (vao, vbo, len(data))
         return self.geometry_cache[geometry]
 
-    def texture(self, path):
+    def texture(self, path): # Carrega a imagem PNG e envia para a GPU
         if path not in self.textures:
             surface = pygame.image.load(str(ROOT / path))
             pixels = pygame.image.tobytes(surface, "RGBA", True)
@@ -146,17 +150,17 @@ class Renderer:
             self.textures[path] = texture
         return self.textures[path]
 
-    def draw(self, mesh):
+    def draw(self, mesh): # Desenha a geometria da malha como triângulos (os vértices já estão na ordem)
         vao, _, count = self.geometry(mesh.geometry)
         gl.glBindVertexArray(vao)
         gl.glDrawArrays(gl.GL_TRIANGLES, 0, count)
 
-    def render(self, scene, camera, size):
-        width, height = size
+    def render(self, scene, camera, size): # Recebe o grafo, camera e tamanho da janela
+        width, height = size # Preparação
         meshes = list(scene.meshes())
         gl.glEnable(gl.GL_DEPTH_TEST)
         gl.glEnable(gl.GL_CULL_FACE)
-        if self.shadows_enabled:
+        if self.shadows_enabled: # Passe de sombra
             gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, self.shadow.fbo)
             gl.glViewport(0, 0, self.shadow.resolution, self.shadow.resolution)
             gl.glClear(gl.GL_DEPTH_BUFFER_BIT)
@@ -166,10 +170,10 @@ class Renderer:
                 if mesh.cast_shadow:
                     self.depth.matrix("modelMatrix", world)
                     self.draw(mesh)
-        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0)
+        gl.glBindFramebuffer(gl.GL_FRAMEBUFFER, 0) # Retorno para a camera principal
         gl.glViewport(0, 0, width, height)
         gl.glClear(gl.GL_COLOR_BUFFER_BIT | gl.GL_DEPTH_BUFFER_BIT)
-        self.lit.use()
+        self.lit.use() # Uniforms globais
         self.lit.matrix("viewMatrix", camera.view_matrix())
         self.lit.matrix("projectionMatrix", camera.projection_matrix(width / height))
         self.lit.matrix("lightMatrix", self.shadow.matrix)
@@ -181,7 +185,7 @@ class Renderer:
         gl.glActiveTexture(gl.GL_TEXTURE1)
         gl.glBindTexture(gl.GL_TEXTURE_2D, self.shadow.texture)
         gl.glActiveTexture(gl.GL_TEXTURE0)
-        for mesh, world in meshes:
+        for mesh, world in meshes: # Desenho de cada malha
             material = mesh.material
             self.lit.matrix("modelMatrix", world)
             self.lit.matrix("normalMatrix", np.linalg.inv(world[:3, :3]).T)
@@ -198,7 +202,7 @@ class Renderer:
             self.draw(mesh)
         gl.glBindVertexArray(0)
 
-    def draw_overlay(self, surface):
+    def draw_overlay(self, surface): # Desenha o HUD por cima da cena
         gl.glDisable(gl.GL_DEPTH_TEST)
         gl.glDisable(gl.GL_CULL_FACE)
         gl.glEnable(gl.GL_BLEND)
@@ -234,7 +238,7 @@ class Renderer:
         path.parent.mkdir(parents=True, exist_ok=True)
         pygame.image.save(surface, str(path))
 
-    def close(self):
+    def close(self): # Libera os recursos da GPU
         for vao, vbo, _ in self.geometry_cache.values():
             gl.glDeleteVertexArrays(1, [vao])
             gl.glDeleteBuffers(1, [vbo])

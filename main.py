@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 
 
-def arguments():
+def arguments(): # Configura e valida os argumentos de linha de comando
     parser = argparse.ArgumentParser(
         description="Base Aurora — drone e helicóptero em missão coordenada."
     )
@@ -48,26 +48,26 @@ def arguments():
     parser.add_argument(
         "--no-shadows", action="store_true", help="Desligar sombras para comparação didática."
     )
-    args = parser.parse_args()
-    if args.frames < 0 or min(args.size) < 480:
+    args = parser.parse_args() # Validações
+    if args.frames < 0 or min(args.size) < 480: # Dimensões mínimas
         parser.error("frames deve ser não negativo e as dimensões devem ser pelo menos 480.")
-    if not math.isfinite(args.time) or args.time < 0:
+    if not math.isfinite(args.time) or args.time < 0: # Tempo finito, não negativo
         parser.error("time deve ser finito e não negativo.")
-    if args.fixed_dt is not None and (not math.isfinite(args.fixed_dt) or args.fixed_dt < 0):
+    if args.fixed_dt is not None and (not math.isfinite(args.fixed_dt) or args.fixed_dt < 0): # fixed-dt válido
         parser.error("fixed-dt deve ser finito e não negativo.")
-    if args.headless and not args.frames:
+    if args.headless and not args.frames: # ajuste automático de frames para headless/screenshot
         args.frames = 1
     if args.screenshot and not args.frames:
         args.frames = 1
     return args
 
 
-def run(args):
+def run(args): # Variáveis do Pygame e SDL offscreen
     os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
     if args.headless:
         os.environ["SDL_VIDEODRIVER"] = "offscreen"
         os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
-    import pygame
+    import pygame # Import de Pygame, OpenGL, HUD, Mission, Scene, Camera, Renderer e janela
     from OpenGL import GL as gl
 
     from app.hud import HUD
@@ -77,7 +77,7 @@ def run(args):
     from framework.renderer import Renderer
     from framework.window import create_window
 
-    pygame.display.init()
+    pygame.display.init() # plica MSAA, cria o Renderer e a cena
     pygame.font.init()
     renderer = None
     try:
@@ -89,10 +89,10 @@ def run(args):
         print("Espaço: pausar | Setas: câmera | WASD: mover | Q/E: zoom | H: ajuda | Esc: sair")
         renderer = Renderer(args.shadow_size)
         renderer.shadows_enabled = not args.no_shadows
-        scene, helicopter, drone = build_scene()
+        scene, helicopter, drone = build_scene() # Instancia estados 
         camera, mission, hud = Camera(), Mission(), HUD()
 
-        def preset(view):
+        def preset(view): # função interna que reposiciona a câmera para as posições base, encontro e topo
             camera.reset()
             if view == "encontro":
                 camera.target[:] = (1, 4.0, -0.5)
@@ -108,12 +108,12 @@ def run(args):
         clock = pygame.time.Clock()
         last_time = time.perf_counter()
         frames, running = 0, True
-        while running:
+        while running: # loop principal
             now = time.perf_counter()
             elapsed, last_time = now - last_time, now
-            dt = args.fixed_dt if args.fixed_dt is not None else elapsed
+            dt = args.fixed_dt if args.fixed_dt is not None else elapsed # mede dt
             capture = None
-            for event in pygame.event.get():
+            for event in pygame.event.get(): # trata eventos de teclado e mouse
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.KEYDOWN:
@@ -171,15 +171,15 @@ def run(args):
             )
             # O primeiro quadro mostra exatamente --time; depois soma dt em segundos.
             if frames:
-                mission.advance(dt)
-            apply_mission(mission, helicopter, drone)
-            camera.follow(helicopter.position, drone.position, min(elapsed, 0.1))
-            size = pygame.display.get_window_size()
+                mission.advance(dt) # Atualiza a missão
+            apply_mission(mission, helicopter, drone) # Aplica as poses
+            camera.follow(helicopter.position, drone.position, min(elapsed, 0.1)) # Atualiza a câmera
+            size = pygame.display.get_window_size() 
             if min(size) <= 0:
                 clock.tick(30)
                 continue
-            renderer.render(scene, camera, size)
-            if show_ui:
+            renderer.render(scene, camera, size) # Renderiza a cena
+            if show_ui: # Mostra o HUD
                 hud.tracking = camera.tracking
                 renderer.draw_overlay(hud.draw(size, mission, renderer, clock.get_fps()))
             frames += 1
@@ -194,7 +194,7 @@ def run(args):
                 running = False
             if not args.headless:
                 clock.tick(60)
-        error = gl.glGetError()
+        error = gl.glGetError() # Verifica erros OpenGL, fecha  renderer e encerra o Pygame
         if error != gl.GL_NO_ERROR:
             raise RuntimeError(f"Erro OpenGL ao finalizar: {error}")
         return 0
@@ -204,7 +204,7 @@ def run(args):
         pygame.quit()
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # Inicializa a aplicação, trata erros de import e outras exceções
     try:
         raise SystemExit(run(arguments()))
     except ImportError as error:

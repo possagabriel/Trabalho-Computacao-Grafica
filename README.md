@@ -12,8 +12,8 @@ Os temas **3 e 4** foram informados pelo solicitante. Os nomes e a distribuiçã
 
 | Integrante | Identificação | Tema sorteado |
 |---|---|---|
-| Integrante do drone | **PREENCHER NOME E MATRÍCULA** | **3 — Drone de quatro hélices** |
-| Integrante do helicóptero | **PREENCHER NOME E MATRÍCULA** | **4 — Helicóptero estilizado** |
+| Integrante do drone | **Gabriel Possa Lima** | **3 — Drone de quatro hélices** |
+| Integrante do helicóptero | **Darlan José dos Santos** | **4 — Helicóptero estilizado** |
 
 ## Instalação e execução
 
